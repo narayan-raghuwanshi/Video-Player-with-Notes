@@ -1,113 +1,242 @@
-import Image from "next/image";
+"use client";
+import { useState, useEffect, useRef } from "react";
+
+// Extend the window interface to include YT
+declare global {
+  interface Window {
+    YT: any;
+    onYouTubeIframeAPIReady: () => void;
+  }
+}
 
 export default function Home() {
+  const [video_id, setVideoId] = useState("k8BvmGPG0M4");
+  const [videoTitle, setVideoTitle] = useState("");
+  const [videoDescription, setVideoDescription] = useState("");
+  const [notes, setNotes] = useState<{ id: string, timeStamp: string, date: string, videoId: string, note: string }[]>([]);
+  const [isAddingNote, setIsAddingNote] = useState(false);
+  const [newNoteText, setNewNoteText] = useState("");
+  const [editingNoteId, setEditingNoteId] = useState<string | null>(null);
+  const [editingNoteText, setEditingNoteText] = useState("");
+  const playerRef = useRef<any>(null);
+
+  useEffect(() => {
+    const videoId = new URLSearchParams(window.location.search).get("v");
+    setVideoId(videoId || "k8BvmGPG0M4");
+
+    const loadYouTubeAPI = () => {
+      const tag = document.createElement("script");
+      tag.src = "https://www.youtube.com/iframe_api";
+      tag.async = true;
+      tag.defer = true;
+
+      const firstScriptTag = document.getElementsByTagName("script")[0];
+      if (firstScriptTag && firstScriptTag.parentNode) {
+        firstScriptTag.parentNode.insertBefore(tag, firstScriptTag);
+      } else {
+        document.head.appendChild(tag);
+      }
+    };
+
+    const onYouTubeIframeAPIReady = () => {
+      playerRef.current = new window.YT.Player("player", {
+        events: {
+          onReady: onPlayerReady,
+        },
+      });
+    };
+
+    window.onYouTubeIframeAPIReady = onYouTubeIframeAPIReady;
+    loadYouTubeAPI();
+
+    function onPlayerReady(event: any) {
+      fetchVideoTitle();
+      loadNotes();
+    }
+
+    return () => {
+      if (playerRef.current) {
+        playerRef.current.destroy();
+      }
+    };
+  }, []);
+
+  const fetchVideoTitle = () => {
+    if (playerRef.current) {
+      const videoId = playerRef.current.getVideoData().video_id;
+      fetch(
+        `https://www.googleapis.com/youtube/v3/videos?part=snippet&id=${videoId}&key=AIzaSyAIVYSW1n9HRiAo0m3G2bIjivAlzNn7Khc`
+      )
+        .then((response) => response.json())
+        .then((data) => {
+          if (data.items && data.items.length > 0) {
+            setVideoTitle(data.items[0].snippet.title);
+            setVideoDescription(data.items[0].snippet.description);
+          }
+        })
+        .catch((error) => {
+          console.error("Error fetching video title:", error);
+        });
+    }
+  };
+
+  const loadNotes = () => {
+    if (playerRef.current) {
+      const videoId = playerRef.current.getVideoData().video_id;
+      const storedNotes = localStorage.getItem(`notes_${videoId}`);
+      if (storedNotes) {
+        setNotes(JSON.parse(storedNotes));
+      }
+    }
+  };
+
+  const handleNoteAdd = () => {
+    setIsAddingNote(true);
+  };
+
+  const handleSaveNote = () => {
+    if (playerRef.current && newNoteText.trim()) {
+      const time = playerRef.current.getCurrentTime();
+      const today = new Date();
+      const formattedDate = `${today.getDate()} ${today.toLocaleString("default", { month: "long" })} ${today.getFullYear()}`;
+      const newNote = {
+        id: `${Math.random().toString(36)}`,
+        timeStamp: `${Math.floor(time / 60)}:${Math.floor(time % 60).toString().padStart(2, '0')}`,
+        date: formattedDate,
+        videoId: playerRef.current.getVideoData().video_id,
+        note: newNoteText,
+      };
+      const updatedNotes = [...notes, newNote];
+      setNotes(updatedNotes);
+      localStorage.setItem(`notes_${newNote.videoId}`, JSON.stringify(updatedNotes));
+      setNewNoteText("");
+      setIsAddingNote(false);
+    }
+  };
+
+  const handleNoteClick = (timeStamp: string) => {
+    const [minutes, seconds] = timeStamp.split(":").map(Number);
+    const timeInSeconds = minutes * 60 + seconds;
+    if (playerRef.current) {
+      playerRef.current.seekTo(timeInSeconds);
+    }
+  };
+
+  const handleEditNote = (noteId: string) => {
+    const noteToEdit = notes.find(note => note.id === noteId);
+    if (noteToEdit) {
+      setEditingNoteId(noteId);
+      setEditingNoteText(noteToEdit.note);
+    }
+  };
+
+  const handleSaveEditedNote = () => {
+    if (editingNoteId !== null) {
+      const updatedNotes = notes.map(note =>
+        note.id === editingNoteId ? { ...note, note: editingNoteText } : note
+      );
+      setNotes(updatedNotes);
+      localStorage.setItem(`notes_${updatedNotes[0].videoId}`, JSON.stringify(updatedNotes));
+      setEditingNoteId(null);
+      setEditingNoteText("");
+    }
+  };
+
+  const handleDeleteNote = (noteId: string) => {
+    const updatedNotes = notes.filter(note => note.id !== noteId);
+    setNotes(updatedNotes);
+    if (updatedNotes.length > 0) {
+      localStorage.setItem(`notes_${updatedNotes[0].videoId}`, JSON.stringify(updatedNotes));
+    } else {
+      localStorage.removeItem(`notes_${video_id}`);
+    }
+  };
+
   return (
-    <main className="flex min-h-screen flex-col items-center justify-between p-24">
-      <div className="z-10 w-full max-w-5xl items-center justify-between font-mono text-sm lg:flex">
-        <p className="fixed left-0 top-0 flex w-full justify-center border-b border-gray-300 bg-gradient-to-b from-zinc-200 pb-6 pt-8 backdrop-blur-2xl dark:border-neutral-800 dark:bg-zinc-800/30 dark:from-inherit lg:static lg:w-auto  lg:rounded-xl lg:border lg:bg-gray-200 lg:p-4 lg:dark:bg-zinc-800/30">
-          Get started by editing&nbsp;
-          <code className="font-mono font-bold">src/app/page.tsx</code>
-        </p>
-        <div className="fixed bottom-0 left-0 flex h-48 w-full items-end justify-center bg-gradient-to-t from-white via-white dark:from-black dark:via-black lg:static lg:size-auto lg:bg-none">
-          <a
-            className="pointer-events-none flex place-items-center gap-2 p-8 lg:pointer-events-auto lg:p-0"
-            href="https://vercel.com?utm_source=create-next-app&utm_medium=appdir-template&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            By{" "}
-            <Image
-              src="/vercel.svg"
-              alt="Vercel Logo"
-              className="dark:invert"
-              width={100}
-              height={24}
-              priority
-            />
-          </a>
-        </div>
-      </div>
+    <>
+      <main className="flex flex-col items-center space-y-8 mb-8">
+        <section className="player_section">
+          <h2 className="py-8 text-3xl font-semibold text-[#101828]">Video player with notes</h2>
+          <div className="flex justify-center">
+            <iframe
+              id="player"
+              className="w-[96vw] h-[50vw] sm:w-[80vw] sm:h-[45vw] rounded-lg"
+              src={`https://www.youtube.com/embed/${video_id}?enablejsapi=1&autoplay=1&controls=1&modestbranding=1&rel=0&showinfo=0&fs=0&start=0`}
+              allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+              allowFullScreen
+            ></iframe>
+          </div>
 
-      <div className="relative z-[-1] flex place-items-center before:absolute before:h-[300px] before:w-full before:-translate-x-1/2 before:rounded-full before:bg-gradient-radial before:from-white before:to-transparent before:blur-2xl before:content-[''] after:absolute after:-z-20 after:h-[180px] after:w-full after:translate-x-1/3 after:bg-gradient-conic after:from-sky-200 after:via-blue-200 after:blur-2xl after:content-[''] before:dark:bg-gradient-to-br before:dark:from-transparent before:dark:to-blue-700 before:dark:opacity-10 after:dark:from-sky-900 after:dark:via-[#0141ff] after:dark:opacity-40 sm:before:w-[480px] sm:after:w-[240px] before:lg:h-[360px]">
-        <Image
-          className="relative dark:drop-shadow-[0_0_0.3rem_#ffffff70] dark:invert"
-          src="/next.svg"
-          alt="Next.js Logo"
-          width={180}
-          height={37}
-          priority
-        />
-      </div>
-
-      <div className="mb-32 grid text-center lg:mb-0 lg:w-full lg:max-w-5xl lg:grid-cols-4 lg:text-left">
-        <a
-          href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template&utm_campaign=create-next-app"
-          className="group rounded-lg border border-transparent px-5 py-4 transition-colors hover:border-gray-300 hover:bg-gray-100 hover:dark:border-neutral-700 hover:dark:bg-neutral-800/30"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <h2 className="mb-3 text-2xl font-semibold">
-            Docs{" "}
-            <span className="inline-block transition-transform group-hover:translate-x-1 motion-reduce:transform-none">
-              -&gt;
-            </span>
-          </h2>
-          <p className="m-0 max-w-[30ch] text-sm opacity-50">
-            Find in-depth information about Next.js features and API.
-          </p>
-        </a>
-
-        <a
-          href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          className="group rounded-lg border border-transparent px-5 py-4 transition-colors hover:border-gray-300 hover:bg-gray-100 hover:dark:border-neutral-700 hover:dark:bg-neutral-800/30"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <h2 className="mb-3 text-2xl font-semibold">
-            Learn{" "}
-            <span className="inline-block transition-transform group-hover:translate-x-1 motion-reduce:transform-none">
-              -&gt;
-            </span>
-          </h2>
-          <p className="m-0 max-w-[30ch] text-sm opacity-50">
-            Learn about Next.js in an interactive course with&nbsp;quizzes!
-          </p>
-        </a>
-
-        <a
-          href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template&utm_campaign=create-next-app"
-          className="group rounded-lg border border-transparent px-5 py-4 transition-colors hover:border-gray-300 hover:bg-gray-100 hover:dark:border-neutral-700 hover:dark:bg-neutral-800/30"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <h2 className="mb-3 text-2xl font-semibold">
-            Templates{" "}
-            <span className="inline-block transition-transform group-hover:translate-x-1 motion-reduce:transform-none">
-              -&gt;
-            </span>
-          </h2>
-          <p className="m-0 max-w-[30ch] text-sm opacity-50">
-            Explore starter templates for Next.js.
-          </p>
-        </a>
-
-        <a
-          href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template&utm_campaign=create-next-app"
-          className="group rounded-lg border border-transparent px-5 py-4 transition-colors hover:border-gray-300 hover:bg-gray-100 hover:dark:border-neutral-700 hover:dark:bg-neutral-800/30"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <h2 className="mb-3 text-2xl font-semibold">
-            Deploy{" "}
-            <span className="inline-block transition-transform group-hover:translate-x-1 motion-reduce:transform-none">
-              -&gt;
-            </span>
-          </h2>
-          <p className="m-0 max-w-[30ch] text-balance text-sm opacity-50">
-            Instantly deploy your Next.js site to a shareable URL with Vercel.
-          </p>
-        </a>
-      </div>
-    </main>
+          <div className="space-y-4 mt-8 max-w-[96vw] sm:max-w-[80vw]">
+            <p className="text-xl text-[#101828] font-[600]">{videoTitle}</p>
+            <p className="text-sm text-[#475467]">Video Title: {videoDescription}</p>
+            <hr />
+          </div>
+        </section>
+        <section className="notes_section">
+          <div className="space-y-6 w-[96vw] sm:w-[80vw] self-start border rounded-md p-6">
+            <div className="space-y-4">
+              <div className="flex justify-between flex-wrap gap-6">
+                <div>
+                  <p className="text-xl text-[#101828] font-[600]">My notes</p>
+                  <p className="text-sm text-[#475467]">All your notes at a single place. Click on any note to go to specific timestamp in the video.</p>
+                </div>
+                {!isAddingNote && !editingNoteId && (
+                  <div>
+                    <button onClick={handleNoteAdd} className="border-[1px] border-[#D0D5DD] rounded-md py-2 px-4 flex gap-2 items-center font-[600] text-[#344054]">
+                      <svg width="20" height="20" viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg">
+                        <path d="M10 6.66669V13.3334M6.66669 10H13.3334M18.3334 10C18.3334 14.6024 14.6024 18.3334 10 18.3334C5.39765 18.3334 1.66669 14.6024 1.66669 10C1.66669 5.39765 5.39765 1.66669 10 1.66669C14.6024 1.66669 18.3334 5.39765 18.3334 10Z" stroke="#667085" strokeWidth="1.66667" strokeLinecap="round" strokeLinejoin="round" />
+                      </svg>
+                      <p className="">Add new note</p>
+                    </button>
+                  </div>
+                )}
+              </div>
+              {isAddingNote && (
+                <div className="flex justify-between gap-2">
+                  <input
+                    type="text"
+                    className="p-2 border rounded-md w-full placeholder:font-light"
+                    placeholder="Type something..."
+                    value={newNoteText}
+                    onChange={(e) => setNewNoteText(e.target.value)}
+                  />
+                  <button onClick={handleSaveNote} className="bg-black rounded-md px-4 py-2 text-white">Save</button>
+                </div>
+              )}
+              {editingNoteId && (
+                <div className="flex justify-between gap-2">
+                  <input
+                    type="text"
+                    className="p-2 border rounded-md w-full placeholder:font-light"
+                    placeholder="Edit your note..."
+                    value={editingNoteText}
+                    onChange={(e) => setEditingNoteText(e.target.value)}
+                  />
+                  <button onClick={handleSaveEditedNote} className="bg-black rounded-md px-4 py-2 text-white">Save</button>
+                </div>
+              )}
+            </div>
+            <hr />
+            {notes.map((note) => (
+              <div key={note.id} className="space-y-4">
+                <div>
+                  <p className="text-[#344054] text-sm font-[500]">{note.date}</p>
+                  <p className="text-sm text-[#475467]">Timestamp: <span className="text-[#6941C6] cursor-pointer" onClick={() => handleNoteClick(note.timeStamp)}>{note.timeStamp}</span></p>
+                </div>
+                <div className="p-3 border rounded-md">
+                  <p className="text-sm text-[#344054]">{note.note}</p>
+                </div>
+                <div className="flex justify-end gap-1">
+                  <button onClick={() => handleDeleteNote(note.id)} className="border border-[#D0D5DD] px-[10px] py-[4px] rounded-md text-sm text-[#344054] font-[500]">Delete note</button>
+                  <button onClick={() => handleEditNote(note.id)} className="border border-[#D0D5DD] px-[10px] py-[4px] rounded-md text-sm text-[#344054] font-[500]">Edit note</button>
+                </div>
+                <hr />
+              </div>
+            ))}
+          </div>
+        </section>
+      </main>
+    </>
   );
 }
