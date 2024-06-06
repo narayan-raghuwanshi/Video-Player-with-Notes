@@ -169,7 +169,7 @@ export default function Home() {
           <div className="flex justify-center">
             <iframe
               id="player"
-              className="w-[96vw] h-[50vw] sm:w-[80vw] sm:h-[45vw] rounded-lg"
+              className="w-[96vw] h-[54vw] sm:w-[80vw] sm:h-[45vw] rounded-lg"
               src={`https://www.youtube.com/embed/${video_id}?enablejsapi=1&autoplay=1&controls=1&modestbranding=1&rel=0&showinfo=0&fs=0&start=0`}
               allow="accelerometer; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
               allowFullScreen
