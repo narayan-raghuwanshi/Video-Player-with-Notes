@@ -10,6 +10,7 @@ declare global {
 }
 
 export default function Home() {
+  const [videoUrl, setVideoUrl] = useState("https://www.youtube.com/watch?v=k8BvmGPG0M4");
   const [video_id, setVideoId] = useState("k8BvmGPG0M4");
   const [videoTitle, setVideoTitle] = useState("");
   const [videoDescription, setVideoDescription] = useState("");
@@ -21,9 +22,6 @@ export default function Home() {
   const playerRef = useRef<any>(null);
 
   useEffect(() => {
-    const videoId = new URLSearchParams(window.location.search).get("v");
-    setVideoId(videoId || "k8BvmGPG0M4");
-
     const loadYouTubeAPI = () => {
       const tag = document.createElement("script");
       tag.src = "https://www.youtube.com/iframe_api";
@@ -156,20 +154,31 @@ export default function Home() {
     <>
       <main className="flex flex-col items-center space-y-8 mb-8">
         <section className="player_section">
+          <div className="flex flex-col md:flex-row justify-center mt-10 gap-4">
+            <input
+              type="text"
+              className="p-2 border border-[#101828] rounded-md w-full placeholder:font-light"
+              placeholder="Paste youtube video URL here..."
+              onChange={(e) => {
+                setVideoUrl(e.target.value)
+                setVideoId(e.target.value.split("v=")[1])
+              }}
+            />
+          </div>
           <h2 className="py-8 text-3xl font-semibold text-[#101828]">Video player with notes</h2>
           <div className="flex justify-center">
             <iframe
               id="player"
               className="w-[96vw] h-[50vw] sm:w-[80vw] sm:h-[45vw] rounded-lg"
               src={`https://www.youtube.com/embed/${video_id}?enablejsapi=1&autoplay=1&controls=1&modestbranding=1&rel=0&showinfo=0&fs=0&start=0`}
-              allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+              allow="accelerometer; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
               allowFullScreen
             ></iframe>
           </div>
 
           <div className="space-y-4 mt-8 max-w-[96vw] sm:max-w-[80vw]">
             <p className="text-xl text-[#101828] font-[600]">{videoTitle}</p>
-            <p className="text-sm text-[#475467]">Video Title: {videoDescription}</p>
+            <p className="text-sm text-[#475467]">{videoDescription}</p>
             <hr />
           </div>
         </section>
@@ -219,10 +228,10 @@ export default function Home() {
             </div>
             <hr />
             {notes.map((note) => (
-              <div key={note.id} className="space-y-4">
+              <div key={note.id} onClick={() => handleNoteClick(note.timeStamp)} className="space-y-4 cursor-pointer">
                 <div>
                   <p className="text-[#344054] text-sm font-[500]">{note.date}</p>
-                  <p className="text-sm text-[#475467]">Timestamp: <span className="text-[#6941C6] cursor-pointer" onClick={() => handleNoteClick(note.timeStamp)}>{note.timeStamp}</span></p>
+                  <p className="text-sm text-[#475467]">Timestamp: <span className="text-[#6941C6] cursor-pointer">{note.timeStamp}</span></p>
                 </div>
                 <div className="p-3 border rounded-md">
                   <p className="text-sm text-[#344054]">{note.note}</p>

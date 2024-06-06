@@ -1,7 +1,6 @@
 # Video Player with Notes Features
 - A video player to play youtube videos with the feature to take notes at ant timestamp and seek to that time when clicking on the note.
 - Data is stored in the localstorage and notes are different for each videoId.
-- Video id can be extracted from params by adding `?v={videoid}` at the end of base url
 
 
 ## Features
